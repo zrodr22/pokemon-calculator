@@ -1,0 +1,62 @@
+import React, { useState } from "react";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+
+export default function App() {
+  const [input, setInput] = useState("");
+
+  const handlePress = (button: string) => {
+    if (button === "C") {
+      setInput("");
+    } else if (button === "=") {
+      try {
+        setInput(eval(input).toString());
+      } catch {
+        setInput("Error");
+      }
+    } else {
+      setInput(input + button);
+    }
+  };
+
+  const buttons = [
+    ["7", "8", "9", "/"],
+    ["4", "5", "6", "*"],
+    ["1", "2", "3", "-"],
+    ["0", ".", "=", "+"],
+    ["C"],
+  ];
+
+  return (
+    <SafeAreaView style={styles.container}>
+      <View style={styles.display}>
+        <Text style={styles.displayText}>{input || "0"}</Text>
+      </View>
+      <View style={styles.buttons}>
+        {buttons.map((row, i) => (
+          <View key={i} style={styles.row}>
+            {row.map((button) => (
+              <TouchableOpacity
+                key={button}
+                style={styles.button}
+                onPress={() => handlePress(button)}
+              >
+                <Text style={styles.buttonText}>{button}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        ))}
+      </View>
+    </SafeAreaView>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: { flex: 1, justifyContent: "center", backgroundColor: "#fff" },
+  display: { flex: 1, justifyContent: "center", alignItems: "flex-end", padding: 20 },
+  displayText: { fontSize: 40 },
+  buttons: { flex: 2, padding: 10 },
+  row: { flexDirection: "row", justifyContent: "space-around", marginBottom: 10 },
+  button: { flex: 1, margin: 5, padding: 20, backgroundColor: "#ddd", alignItems: "center", borderRadius: 5 },
+  buttonText: { fontSize: 20 },
+});
