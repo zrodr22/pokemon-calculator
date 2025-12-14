@@ -163,22 +163,22 @@ export default function App() {
           <TouchableOpacity onPress={() => setCalendarVisible(true)}>
             <Text style={styles.topText}>Calendar</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setShowScientific(!showScientific)}>
+          {/* <TouchableOpacity onPress={() => setShowScientific(!showScientific)}>
             <Text style={styles.topText}>{showScientific ? "Hide Sci" : "Sci"}</Text>
-          </TouchableOpacity>
+          </TouchableOpacity> */}
         </View>
       </View>
 
       {/* Buttons */}
       <View style={[styles.pad]}>
-        {showScientific &&
+        {/* {showScientific &&
           scientificButtons.map((row, i) => (
             <View key={`sci-${i}`} style={styles.row}>
               {row.map((b) => (
                 <CalcButton key={b} label={b} onPress={press} height={buttonHeight} fontSize={buttonFontSize} />
               ))}
             </View>
-          ))}
+          ))} */}
 
         {standardButtons.map((row, i) => (
           <View key={`std-${i}`} style={styles.row}>
@@ -272,7 +272,7 @@ const styles = StyleSheet.create({
   displayText: { color: "white" },
   topButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
   topText: { color: "#aaa" },
-  pad: { flex: 2, padding: 5, justifyContent: "space-between" },
+  pad: { flex: 1.2, padding: 5, justifyContent: "space-between" },
   row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
   button: { flex: 1, backgroundColor: "#333", margin: 3, borderRadius: 35, minHeight: 50 },
   wide: { flex: 2 },
