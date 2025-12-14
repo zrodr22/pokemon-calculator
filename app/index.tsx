@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -8,304 +8,215 @@ import {
   Modal,
   TextInput,
   Button,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Calendar } from "react-native-calendars";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { AdMobBanner } from 'expo-ads-admob';
-
-// Button layout
-const basicButtons = [
-  ["7", "8", "9", "/"],
-  ["4", "5", "6", "*"],
-  ["1", "2", "3", "-"],
-  ["0", ".", "=", "+"],
-];
-
-const extraButtons = [["C", "(", ")", "⌫"]]; // always visible 4-column row
-
-const scientificButtons = [
-  ["sin", "cos", "tan", "√"],
-  ["^"], // foldable scientific
-];
 
 interface HistoryItem {
   entry: string;
-  date: string; // YYYY-MM-DD for calendar filtering
-  displayDate: string; // friendly display
+  date: string;
+  displayDate: string;
   note?: string;
 }
+
+const STORAGE_KEY = "@calculator_history";
 
 export default function App() {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
   const [historyVisible, setHistoryVisible] = useState(false);
-  const [noteModalVisible, setNoteModalVisible] = useState(false);
-  const [currentNoteIndex, setCurrentNoteIndex] = useState<number | null>(null);
+  const [noteVisible, setNoteVisible] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [noteIndex, setNoteIndex] = useState<number | null>(null);
   const [calendarVisible, setCalendarVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [showScientific, setShowScientific] = useState(false);
 
-  // AsyncStorage key
-  const STORAGE_KEY = "@calculator_history";
+  // Track screen dimensions
+  const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
+  const [screenWidth, setScreenWidth] = useState(Dimensions.get("window").width);
 
-  // Load history on mount
   useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        const saved = await AsyncStorage.getItem(STORAGE_KEY);
-        if (saved) {
-          setHistory(JSON.parse(saved));
-        }
-      } catch (e) {
-        console.error("Failed to load history", e);
-      }
+    AsyncStorage.getItem(STORAGE_KEY).then((data) => {
+      if (data) setHistory(JSON.parse(data));
+    });
+
+    const onChange = ({ window }: { window: { height: number; width: number } }) => {
+      setScreenHeight(window.height);
+      setScreenWidth(window.width);
     };
-    loadHistory();
+
+    Dimensions.addEventListener("change", onChange);
+    return () => Dimensions.removeEventListener("change", onChange);
   }, []);
 
-  // Save history helper
-  const saveHistory = async (newHistory: HistoryItem[]) => {
-    try {
-      await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
-    } catch (e) {
-      console.error("Failed to save history", e);
-    }
+  const persist = (data: HistoryItem[]) => {
+    setHistory(data);
+    AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(data));
   };
 
-  const getLocalDateString = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${(now.getMonth() + 1)
+  const todayKey = () => {
+    const d = new Date();
+    return `${d.getFullYear()}-${(d.getMonth() + 1).toString().padStart(2, "0")}-${d
+      .getDate()
       .toString()
-      .padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
+      .padStart(2, "0")}`;
   };
 
-  const handlePress = (button: string) => {
-    if (button === "C") {
-      setInput("");
-    } else if (button === "⌫") {
-      setInput(input.slice(0, -1));
-    } else if (button === "=") {
-      try {
-        let expression = input.replace("√", "Math.sqrt").replace("^", "**");
-        const result = eval(expression);
+  const evaluate = () => {
+    try {
+      const expression = input.replace("×", "*").replace("÷", "/").replace("√", "Math.sqrt");
+      const result = eval(expression);
+      const now = new Date();
 
-        const now = new Date();
-        const dateString = getLocalDateString();
-        const displayDate = now.toLocaleString();
+      const entry: HistoryItem = {
+        entry: `${input} = ${result}`,
+        date: todayKey(),
+        displayDate: now.toLocaleString(),
+      };
 
-        const newEntry = { entry: `${input} = ${result}`, date: dateString, displayDate };
-        const updatedHistory = [newEntry, ...history];
-
-        setHistory(updatedHistory);
-        saveHistory(updatedHistory);
-        setInput(result.toString());
-      } catch {
-        setInput("Error");
-      }
-    } else if (["sin", "cos", "tan"].includes(button)) {
-      try {
-        const val = Math[button](parseFloat(input));
-        const now = new Date();
-        const dateString = getLocalDateString();
-        const displayDate = now.toLocaleString();
-
-        const newEntry = { entry: `${button}(${input}) = ${val}`, date: dateString, displayDate };
-        const updatedHistory = [newEntry, ...history];
-
-        setHistory(updatedHistory);
-        saveHistory(updatedHistory);
-        setInput(val.toString());
-      } catch {
-        setInput("Error");
-      }
-    } else {
-      setInput(input + button);
+      const updated = [entry, ...history];
+      persist(updated);
+      setInput(String(result));
+    } catch {
+      setInput("Error");
     }
   };
 
-  const openNoteModal = (index: number) => {
-    setCurrentNoteIndex(index);
+  const press = (val: string) => {
+    if (val === "C") setInput("");
+    else if (val === "⌫") setInput(input.slice(0, -1));
+    else if (val === "=") evaluate();
+    else if (["sin", "cos", "tan"].includes(val)) {
+      try {
+        const r = Math[val](parseFloat(input));
+        const entry: HistoryItem = {
+          entry: `${val}(${input}) = ${r}`,
+          date: todayKey(),
+          displayDate: new Date().toLocaleString(),
+        };
+        persist([entry, ...history]);
+        setInput(String(r));
+      } catch {
+        setInput("Error");
+      }
+    } else setInput(input + val);
+  };
+
+  const openNote = (index: number) => {
+    setNoteIndex(index);
     setNoteText(history[index].note || "");
-    setNoteModalVisible(true);
+    setNoteVisible(true);
   };
 
   const saveNote = () => {
-    if (currentNoteIndex !== null) {
-      const updatedHistory = [...history];
-      updatedHistory[currentNoteIndex].note = noteText;
-      setHistory(updatedHistory);
-      saveHistory(updatedHistory);
-      setNoteModalVisible(false);
-    }
+    if (noteIndex === null) return;
+    const updated = [...history];
+    updated[noteIndex].note = noteText;
+    persist(updated);
+    setNoteVisible(false);
   };
 
   const filteredHistory = selectedDate
     ? history.filter((h) => h.date === selectedDate)
     : history;
 
+  // Scaling factors
+  const buttonHeight = Math.max(screenHeight * 0.08, 50); // min 50
+  const buttonFontSize = Math.max(screenHeight * 0.025, 18); // min 18
+  const displayFontSize = Math.min(screenHeight * 0.06, 48); // max 48
+
+  const standardButtons = [
+    ["C", "⌫", "%", "÷"],
+    ["7", "8", "9", "×"],
+    ["4", "5", "6", "−"],
+    ["1", "2", "3", "+"],
+  ];
+
+  const scientificButtons = [["sin", "cos", "tan", "√"]];
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Display */}
       <View style={styles.display}>
         <ScrollView horizontal>
-          <Text style={styles.displayText}>{input || "0"}</Text>
+          <Text style={[styles.displayText, { fontSize: displayFontSize }]}>{input || "0"}</Text>
         </ScrollView>
 
-        {/* History & Calendar Buttons */}
-        <View style={{ flexDirection: "row", marginTop: 10 }}>
-          <TouchableOpacity
-            style={styles.historyButton}
-            onPress={() => {
-              setSelectedDate(null);
-              setHistoryVisible(true);
-            }}
-          >
-            <Text style={{ color: "white" }}>History</Text>
+        <View style={styles.topButtons}>
+          <TouchableOpacity onPress={() => setHistoryVisible(true)}>
+            <Text style={styles.topText}>History</Text>
           </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.historyButton, { marginLeft: 10 }]}
-            onPress={() => setCalendarVisible(true)}
-          >
-            <Text style={{ color: "white" }}>Calendar</Text>
+          <TouchableOpacity onPress={() => setCalendarVisible(true)}>
+            <Text style={styles.topText}>Calendar</Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowScientific(!showScientific)}>
+            <Text style={styles.topText}>{showScientific ? "Hide Sci" : "Sci"}</Text>
           </TouchableOpacity>
         </View>
-
-        {/* Toggle Scientific */}
-        <TouchableOpacity
-          style={[styles.historyButton, { marginTop: 10 }]}
-          onPress={() => setShowScientific(!showScientific)}
-        >
-          <Text style={{ color: "white" }}>
-            {showScientific ? "Hide Scientific" : "Show Scientific"}
-          </Text>
-        </TouchableOpacity>
       </View>
 
-      {/* Buttons Container */}
-      <View style={styles.buttonsContainer}>
-        {/* Basic Buttons */}
-        {basicButtons.map((row, i) => (
-          <View key={`basic-${i}`} style={styles.flexRow}>
-            {row.map((btn) => (
-              <TouchableOpacity
-                key={btn}
-                style={styles.flexButton}
-                onPress={() => handlePress(btn)}
-              >
-                <Text style={styles.buttonText}>{btn}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-
-        {/* Always-visible extra buttons */}
-        {extraButtons.map((row, i) => (
-          <View key={`extra-${i}`} style={styles.flexRow}>
-            {row.map((btn) => (
-              <TouchableOpacity
-                key={btn}
-                style={styles.flexButton}
-                onPress={() => handlePress(btn)}
-              >
-                <Text style={styles.buttonText}>{btn}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-        ))}
-
-        {/* Foldable scientific buttons */}
+      {/* Buttons */}
+      <View style={[styles.pad]}>
         {showScientific &&
           scientificButtons.map((row, i) => (
-            <View key={`sci-${i}`} style={styles.flexRow}>
-              {row.map((btn) => (
-                <TouchableOpacity
-                  key={btn}
-                  style={styles.flexButton}
-                  onPress={() => handlePress(btn)}
-                >
-                  <Text style={styles.buttonText}>{btn}</Text>
-                </TouchableOpacity>
+            <View key={`sci-${i}`} style={styles.row}>
+              {row.map((b) => (
+                <CalcButton key={b} label={b} onPress={press} height={buttonHeight} fontSize={buttonFontSize} />
               ))}
             </View>
           ))}
+
+        {standardButtons.map((row, i) => (
+          <View key={`std-${i}`} style={styles.row}>
+            {row.map((b) => (
+              <CalcButton key={b} label={b} onPress={press} height={buttonHeight} fontSize={buttonFontSize} />
+            ))}
+          </View>
+        ))}
+
+        {/* Bottom row with 0 */}
+        <View style={styles.row}>
+          <CalcButton label="0" wide onPress={press} height={buttonHeight} fontSize={buttonFontSize} />
+          <CalcButton label="." onPress={press} height={buttonHeight} fontSize={buttonFontSize} />
+          <CalcButton label="=" onPress={press} height={buttonHeight} fontSize={buttonFontSize} />
+        </View>
       </View>
 
-      {/* AdMob Banner */}
-      {/* <AdMobBanner
-        bannerSize="fullBanner"
-        adUnitID="ca-app-pub-3940256099942544/6300978111" // Test Ad Unit ID
-        servePersonalizedAds={true}
-        onDidFailToReceiveAdWithError={(error) => console.error(error)}
-      /> */}
-
       {/* History Modal */}
-      <Modal
-        visible={historyVisible}
-        animationType="slide"
-        onRequestClose={() => setHistoryVisible(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>
-            {selectedDate ? `History for ${selectedDate}` : "History"}
-          </Text>
+      <Modal visible={historyVisible} animationType="slide">
+        <SafeAreaView style={styles.modal}>
+          <Text style={styles.modalTitle}>History</Text>
           <ScrollView>
-            {filteredHistory.length === 0 ? (
-              <Text>No calculations yet.</Text>
-            ) : (
-              filteredHistory.map((item, index) => (
-                <TouchableOpacity
-                  key={index}
-                  onPress={() => openNoteModal(index)}
-                  style={styles.historyItem}
-                >
-                  <Text style={styles.historyEntry}>
-                    [{item.displayDate}] {item.entry}
-                  </Text>
-                  {item.note ? (
-                    <Text style={styles.noteText}>Note: {item.note}</Text>
-                  ) : (
-                    <Text style={styles.addNoteText}>Tap to add note</Text>
-                  )}
-                </TouchableOpacity>
-              ))
-            )}
+            {filteredHistory.map((h, i) => (
+              <TouchableOpacity key={i} style={styles.historyItem} onPress={() => openNote(i)}>
+                <Text>{`[${h.displayDate}] ${h.entry}`}</Text>
+                <Text style={styles.note}>{h.note ? `Note: ${h.note}` : "Tap to add note"}</Text>
+              </TouchableOpacity>
+            ))}
           </ScrollView>
           <Button title="Close" onPress={() => setHistoryVisible(false)} />
         </SafeAreaView>
       </Modal>
 
       {/* Note Modal */}
-      <Modal
-        visible={noteModalVisible}
-        animationType="slide"
-        onRequestClose={() => setNoteModalVisible(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
+      <Modal visible={noteVisible} transparent animationType="slide">
+        <SafeAreaView style={styles.modal}>
           <Text style={styles.modalTitle}>Add Note</Text>
-          <TextInput
-            style={styles.noteInput}
-            placeholder="Enter note here"
-            value={noteText}
-            onChangeText={setNoteText}
-          />
-          <Button title="Save Note" onPress={saveNote} />
-          <Button title="Cancel" onPress={() => setNoteModalVisible(false)} />
+          <TextInput style={styles.input} value={noteText} onChangeText={setNoteText} placeholder="Note..." />
+          <Button title="Save" onPress={saveNote} />
+          <Button title="Cancel" onPress={() => setNoteVisible(false)} />
         </SafeAreaView>
       </Modal>
 
       {/* Calendar Modal */}
-      <Modal
-        visible={calendarVisible}
-        animationType="slide"
-        onRequestClose={() => setCalendarVisible(false)}
-      >
-        <SafeAreaView style={styles.modalContainer}>
-          <Text style={styles.modalTitle}>Select Date</Text>
+      <Modal visible={calendarVisible} animationType="slide">
+        <SafeAreaView style={styles.modal}>
           <Calendar
-            onDayPress={(day) => {
-              setSelectedDate(day.dateString);
+            onDayPress={(d) => {
+              setSelectedDate(d.dateString);
               setCalendarVisible(false);
               setHistoryVisible(true);
             }}
@@ -317,742 +228,47 @@ export default function App() {
   );
 }
 
+function CalcButton({
+  label,
+  onPress,
+  wide,
+  height,
+  fontSize,
+}: {
+  label: string;
+  onPress: (v: string) => void;
+  wide?: boolean;
+  height: number;
+  fontSize: number;
+}) {
+  return (
+    <TouchableOpacity
+      onPress={() => onPress(label)}
+      style={[
+        styles.button,
+        wide && styles.wide,
+        { height, justifyContent: "center", alignItems: "center" },
+      ]}
+    >
+      <Text style={[styles.buttonText, { fontSize }]}>{label}</Text>
+    </TouchableOpacity>
+  );
+}
+
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#222" },
-  display: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "flex-end",
-    padding: 20,
-  },
-  displayText: { fontSize: 40, color: "white" },
-  historyButton: {
-    marginTop: 10,
-    backgroundColor: "#555",
-    padding: 10,
-    borderRadius: 5,
-  },
-  buttonsContainer: {
-    flex: 2,
-    padding: 10,
-    justifyContent: "space-around",
-  },
-  flexRow: {
-    flexDirection: "row",
-    flex: 1,
-    justifyContent: "space-around",
-    marginBottom: 10,
-  },
-  flexButton: {
-    backgroundColor: "#444",
-    flex: 1,
-    margin: 5,
-    justifyContent: "center",
-    alignItems: "center",
-    borderRadius: 10,
-  },
-  buttonText: { color: "white", fontSize: 20 },
-  modalContainer: { flex: 1, padding: 20, backgroundColor: "#fff" },
-  modalTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
-  historyEntry: { fontSize: 18 },
+  container: { flex: 1, backgroundColor: "#000" },
+  display: { flex: 1, justifyContent: "flex-end", padding: 10 },
+  displayText: { color: "white" },
+  topButtons: { flexDirection: "row", justifyContent: "space-between", marginTop: 10 },
+  topText: { color: "#aaa" },
+  pad: { flex: 2, padding: 5, justifyContent: "space-between" },
+  row: { flexDirection: "row", justifyContent: "space-between", marginBottom: 5 },
+  button: { flex: 1, backgroundColor: "#333", margin: 3, borderRadius: 35, minHeight: 50 },
+  wide: { flex: 2 },
+  buttonText: { color: "white" },
+  modal: { flex: 1, padding: 20, backgroundColor: "#fff" },
+  modalTitle: { fontSize: 22, fontWeight: "bold", marginBottom: 10 },
   historyItem: { marginBottom: 15 },
-  noteText: { fontSize: 16, fontStyle: "italic", color: "blue" },
-  addNoteText: { fontSize: 16, fontStyle: "italic", color: "gray" },
-  noteInput: {
-    borderWidth: 1,
-    borderColor: "#ccc",
-    padding: 10,
-    marginBottom: 20,
-    borderRadius: 5,
-  },
+  note: { fontStyle: "italic", color: "#555" },
+  input: { borderWidth: 1, borderColor: "#ccc", padding: 10, marginBottom: 10 },
 });
-
-
-
-//********* NO ADS******************* */
-// import React, { useState, useEffect } from "react";
-// import {
-//   View,
-//   Text,
-//   TouchableOpacity,
-//   StyleSheet,
-//   ScrollView,
-//   Modal,
-//   TextInput,
-//   Button,
-// } from "react-native";
-// import { SafeAreaView } from "react-native-safe-area-context";
-// import { Calendar } from "react-native-calendars";
-// import AsyncStorage from "@react-native-async-storage/async-storage";
-
-// // Button layout
-// const basicButtons = [
-//   ["7", "8", "9", "/"],
-//   ["4", "5", "6", "*"],
-//   ["1", "2", "3", "-"],
-//   ["0", ".", "=", "+"],
-// ];
-
-// const extraButtons = [["C", "(", ")", "⌫"]]; // always visible 4-column row
-
-// const scientificButtons = [
-//   ["sin", "cos", "tan", "√"],
-//   ["^"], // foldable scientific
-// ];
-
-// interface HistoryItem {
-//   entry: string;
-//   date: string; // YYYY-MM-DD for calendar filtering
-//   displayDate: string; // friendly display
-//   note?: string;
-// }
-
-// export default function App() {
-//   const [input, setInput] = useState("");
-//   const [history, setHistory] = useState<HistoryItem[]>([]);
-//   const [historyVisible, setHistoryVisible] = useState(false);
-//   const [noteModalVisible, setNoteModalVisible] = useState(false);
-//   const [currentNoteIndex, setCurrentNoteIndex] = useState<number | null>(null);
-//   const [noteText, setNoteText] = useState("");
-//   const [calendarVisible, setCalendarVisible] = useState(false);
-//   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-//   const [showScientific, setShowScientific] = useState(false);
-
-//   // AsyncStorage key
-//   const STORAGE_KEY = "@calculator_history";
-
-//   // Load history on mount
-//   useEffect(() => {
-//     const loadHistory = async () => {
-//       try {
-//         const saved = await AsyncStorage.getItem(STORAGE_KEY);
-//         if (saved) {
-//           setHistory(JSON.parse(saved));
-//         }
-//       } catch (e) {
-//         console.error("Failed to load history", e);
-//       }
-//     };
-//     loadHistory();
-//   }, []);
-
-//   // Save history helper
-//   const saveHistory = async (newHistory: HistoryItem[]) => {
-//     try {
-//       await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify(newHistory));
-//     } catch (e) {
-//       console.error("Failed to save history", e);
-//     }
-//   };
-
-//   const getLocalDateString = () => {
-//     const now = new Date();
-//     return `${now.getFullYear()}-${(now.getMonth() + 1)
-//       .toString()
-//       .padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
-//   };
-
-//   const handlePress = (button: string) => {
-//     if (button === "C") {
-//       setInput("");
-//     } else if (button === "⌫") {
-//       setInput(input.slice(0, -1));
-//     } else if (button === "=") {
-//       try {
-//         let expression = input.replace("√", "Math.sqrt").replace("^", "**");
-//         const result = eval(expression);
-
-//         const now = new Date();
-//         const dateString = getLocalDateString();
-//         const displayDate = now.toLocaleString();
-
-//         const newEntry = { entry: `${input} = ${result}`, date: dateString, displayDate };
-//         const updatedHistory = [newEntry, ...history];
-
-//         setHistory(updatedHistory);
-//         saveHistory(updatedHistory);
-//         setInput(result.toString());
-//       } catch {
-//         setInput("Error");
-//       }
-//     } else if (["sin", "cos", "tan"].includes(button)) {
-//       try {
-//         const val = Math[button](parseFloat(input));
-//         const now = new Date();
-//         const dateString = getLocalDateString();
-//         const displayDate = now.toLocaleString();
-
-//         const newEntry = { entry: `${button}(${input}) = ${val}`, date: dateString, displayDate };
-//         const updatedHistory = [newEntry, ...history];
-
-//         setHistory(updatedHistory);
-//         saveHistory(updatedHistory);
-//         setInput(val.toString());
-//       } catch {
-//         setInput("Error");
-//       }
-//     } else {
-//       setInput(input + button);
-//     }
-//   };
-
-//   const openNoteModal = (index: number) => {
-//     setCurrentNoteIndex(index);
-//     setNoteText(history[index].note || "");
-//     setNoteModalVisible(true);
-//   };
-
-//   const saveNote = () => {
-//     if (currentNoteIndex !== null) {
-//       const updatedHistory = [...history];
-//       updatedHistory[currentNoteIndex].note = noteText;
-//       setHistory(updatedHistory);
-//       saveHistory(updatedHistory);
-//       setNoteModalVisible(false);
-//     }
-//   };
-
-//   const filteredHistory = selectedDate
-//     ? history.filter((h) => h.date === selectedDate)
-//     : history;
-
-//   return (
-//     <SafeAreaView style={styles.container}>
-//       {/* Display */}
-//       <View style={styles.display}>
-//         <ScrollView horizontal>
-//           <Text style={styles.displayText}>{input || "0"}</Text>
-//         </ScrollView>
-
-//         {/* History & Calendar Buttons */}
-//         <View style={{ flexDirection: "row", marginTop: 10 }}>
-//           <TouchableOpacity
-//             style={styles.historyButton}
-//             onPress={() => {
-//               setSelectedDate(null);
-//               setHistoryVisible(true);
-//             }}
-//           >
-//             <Text style={{ color: "white" }}>History</Text>
-//           </TouchableOpacity>
-//           <TouchableOpacity
-//             style={[styles.historyButton, { marginLeft: 10 }]}
-//             onPress={() => setCalendarVisible(true)}
-//           >
-//             <Text style={{ color: "white" }}>Calendar</Text>
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* Toggle Scientific */}
-//         <TouchableOpacity
-//           style={[styles.historyButton, { marginTop: 10 }]}
-//           onPress={() => setShowScientific(!showScientific)}
-//         >
-//           <Text style={{ color: "white" }}>
-//             {showScientific ? "Hide Scientific" : "Show Scientific"}
-//           </Text>
-//         </TouchableOpacity>
-//       </View>
-
-//       {/* Buttons Container */}
-//       <View style={styles.buttonsContainer}>
-//         {/* Basic Buttons */}
-//         {basicButtons.map((row, i) => (
-//           <View key={`basic-${i}`} style={styles.flexRow}>
-//             {row.map((btn) => (
-//               <TouchableOpacity
-//                 key={btn}
-//                 style={styles.flexButton}
-//                 onPress={() => handlePress(btn)}
-//               >
-//                 <Text style={styles.buttonText}>{btn}</Text>
-//               </TouchableOpacity>
-//             ))}
-//           </View>
-//         ))}
-
-//         {/* Always-visible extra buttons */}
-//         {extraButtons.map((row, i) => (
-//           <View key={`extra-${i}`} style={styles.flexRow}>
-//             {row.map((btn) => (
-//               <TouchableOpacity
-//                 key={btn}
-//                 style={styles.flexButton}
-//                 onPress={() => handlePress(btn)}
-//               >
-//                 <Text style={styles.buttonText}>{btn}</Text>
-//               </TouchableOpacity>
-//             ))}
-//           </View>
-//         ))}
-
-//         {/* Foldable scientific buttons */}
-//         {showScientific &&
-//           scientificButtons.map((row, i) => (
-//             <View key={`sci-${i}`} style={styles.flexRow}>
-//               {row.map((btn) => (
-//                 <TouchableOpacity
-//                   key={btn}
-//                   style={styles.flexButton}
-//                   onPress={() => handlePress(btn)}
-//                 >
-//                   <Text style={styles.buttonText}>{btn}</Text>
-//                 </TouchableOpacity>
-//               ))}
-//             </View>
-//           ))}
-//       </View>
-
-//       {/* History Modal */}
-//       <Modal
-//         visible={historyVisible}
-//         animationType="slide"
-//         onRequestClose={() => setHistoryVisible(false)}
-//       >
-//         <SafeAreaView style={styles.modalContainer}>
-//           <Text style={styles.modalTitle}>
-//             {selectedDate ? `History for ${selectedDate}` : "History"}
-//           </Text>
-//           <ScrollView>
-//             {filteredHistory.length === 0 ? (
-//               <Text>No calculations yet.</Text>
-//             ) : (
-//               filteredHistory.map((item, index) => (
-//                 <TouchableOpacity
-//                   key={index}
-//                   onPress={() => openNoteModal(index)}
-//                   style={styles.historyItem}
-//                 >
-//                   <Text style={styles.historyEntry}>
-//                     [{item.displayDate}] {item.entry}
-//                   </Text>
-//                   {item.note ? (
-//                     <Text style={styles.noteText}>Note: {item.note}</Text>
-//                   ) : (
-//                     <Text style={styles.addNoteText}>Tap to add note</Text>
-//                   )}
-//                 </TouchableOpacity>
-//               ))
-//             )}
-//           </ScrollView>
-//           <Button title="Close" onPress={() => setHistoryVisible(false)} />
-//         </SafeAreaView>
-//       </Modal>
-
-//       {/* Note Modal */}
-//       <Modal
-//         visible={noteModalVisible}
-//         animationType="slide"
-//         onRequestClose={() => setNoteModalVisible(false)}
-//       >
-//         <SafeAreaView style={styles.modalContainer}>
-//           <Text style={styles.modalTitle}>Add Note</Text>
-//           <TextInput
-//             style={styles.noteInput}
-//             placeholder="Enter note here"
-//             value={noteText}
-//             onChangeText={setNoteText}
-//           />
-//           <Button title="Save Note" onPress={saveNote} />
-//           <Button title="Cancel" onPress={() => setNoteModalVisible(false)} />
-//         </SafeAreaView>
-//       </Modal>
-
-//       {/* Calendar Modal */}
-//       <Modal
-//         visible={calendarVisible}
-//         animationType="slide"
-//         onRequestClose={() => setCalendarVisible(false)}
-//       >
-//         <SafeAreaView style={styles.modalContainer}>
-//           <Text style={styles.modalTitle}>Select Date</Text>
-//           <Calendar
-//             onDayPress={(day) => {
-//               setSelectedDate(day.dateString);
-//               setCalendarVisible(false);
-//               setHistoryVisible(true);
-//             }}
-//           />
-//           <Button title="Close" onPress={() => setCalendarVisible(false)} />
-//         </SafeAreaView>
-//       </Modal>
-//     </SafeAreaView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: { flex: 1, backgroundColor: "#222" },
-//   display: {
-//     flex: 1,
-//     justifyContent: "center",
-//     alignItems: "flex-end",
-//     padding: 20,
-//   },
-//   displayText: { fontSize: 40, color: "white" },
-//   historyButton: {
-//     marginTop: 10,
-//     backgroundColor: "#555",
-//     padding: 10,
-//     borderRadius: 5,
-//   },
-//   buttonsContainer: {
-//     flex: 2,
-//     padding: 10,
-//     justifyContent: "space-around",
-//   },
-//   flexRow: {
-//     flexDirection: "row",
-//     flex: 1,
-//     justifyContent: "space-around",
-//     marginBottom: 10,
-//   },
-//   flexButton: {
-//     backgroundColor: "#444",
-//     flex: 1,
-//     margin: 5,
-//     justifyContent: "center",
-//     alignItems: "center",
-//     borderRadius: 10,
-//   },
-//   buttonText: { color: "white", fontSize: 20 },
-//   modalContainer: { flex: 1, padding: 20, backgroundColor: "#fff" },
-//   modalTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
-//   historyEntry: { fontSize: 18 },
-//   historyItem: { marginBottom: 15 },
-//   noteText: { fontSize: 16, fontStyle: "italic", color: "blue" },
-//   addNoteText: { fontSize: 16, fontStyle: "italic", color: "gray" },
-//   noteInput: {
-//     borderWidth: 1,
-//     borderColor: "#ccc",
-//     padding: 10,
-//     marginBottom: 20,
-//     borderRadius: 5,
-//   },
-// });
-
-
-// ******* NO PERSISTENCE NO ADS **********
-// import React, { useState } from "react";
-// import {
-//   View,
-//   Text,
-//   TouchableOpacity,
-//   StyleSheet,
-//   ScrollView,
-//   Modal,
-//   TextInput,
-//   Button,
-// } from "react-native";
-// import { SafeAreaView } from "react-native-safe-area-context";
-// import { Calendar } from "react-native-calendars";
-
-// // Button layout
-// const basicButtons = [
-//   ["7", "8", "9", "/"],
-//   ["4", "5", "6", "*"],
-//   ["1", "2", "3", "-"],
-//   ["0", ".", "=", "+"],
-// ];
-
-// const extraButtons = [["C", "(", ")", "⌫"]]; // always visible 4-column row
-
-// const scientificButtons = [
-//   ["sin", "cos", "tan", "√"],
-//   ["^"], // foldable scientific
-// ];
-
-// interface HistoryItem {
-//   entry: string;
-//   date: string; // YYYY-MM-DD for calendar filtering
-//   displayDate: string; // friendly display
-//   note?: string;
-// }
-
-// export default function App() {
-//   const [input, setInput] = useState("");
-//   const [history, setHistory] = useState<HistoryItem[]>([]);
-//   const [historyVisible, setHistoryVisible] = useState(false);
-//   const [noteModalVisible, setNoteModalVisible] = useState(false);
-//   const [currentNoteIndex, setCurrentNoteIndex] = useState<number | null>(null);
-//   const [noteText, setNoteText] = useState("");
-
-//   const [calendarVisible, setCalendarVisible] = useState(false);
-//   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-//   const [showScientific, setShowScientific] = useState(false);
-
-//   const getLocalDateString = () => {
-//     const now = new Date();
-//     return `${now.getFullYear()}-${(now.getMonth() + 1)
-//       .toString()
-//       .padStart(2, "0")}-${now.getDate().toString().padStart(2, "0")}`;
-//   };
-
-//   const handlePress = (button: string) => {
-//     if (button === "C") {
-//       setInput("");
-//     } else if (button === "⌫") {
-//       setInput(input.slice(0, -1));
-//     } else if (button === "=") {
-//       try {
-//         let expression = input.replace("√", "Math.sqrt").replace("^", "**");
-//         const result = eval(expression);
-
-//         const now = new Date();
-//         const dateString = getLocalDateString();
-//         const displayDate = now.toLocaleString();
-
-//         setHistory([{ entry: `${input} = ${result}`, date: dateString, displayDate }, ...history]);
-//         setInput(result.toString());
-//       } catch {
-//         setInput("Error");
-//       }
-//     } else if (["sin", "cos", "tan"].includes(button)) {
-//       try {
-//         const val = Math[button](parseFloat(input));
-//         const now = new Date();
-//         const dateString = getLocalDateString();
-//         const displayDate = now.toLocaleString();
-
-//         setHistory([{ entry: `${button}(${input}) = ${val}`, date: dateString, displayDate }, ...history]);
-//         setInput(val.toString());
-//       } catch {
-//         setInput("Error");
-//       }
-//     } else {
-//       setInput(input + button);
-//     }
-//   };
-
-//   const openNoteModal = (index: number) => {
-//     setCurrentNoteIndex(index);
-//     setNoteText(history[index].note || "");
-//     setNoteModalVisible(true);
-//   };
-
-//   const saveNote = () => {
-//     if (currentNoteIndex !== null) {
-//       const updatedHistory = [...history];
-//       updatedHistory[currentNoteIndex].note = noteText;
-//       setHistory(updatedHistory);
-//       setNoteModalVisible(false);
-//     }
-//   };
-
-//   const filteredHistory = selectedDate
-//     ? history.filter((h) => h.date === selectedDate)
-//     : history;
-
-//   return (
-//     <SafeAreaView style={styles.container}>
-//       {/* Display */}
-//       <View style={styles.display}>
-//         <ScrollView horizontal>
-//           <Text style={styles.displayText}>{input || "0"}</Text>
-//         </ScrollView>
-
-//         {/* History & Calendar Buttons */}
-//         <View style={{ flexDirection: "row", marginTop: 10 }}>
-//           <TouchableOpacity
-//             style={styles.historyButton}
-//             onPress={() => {
-//               setSelectedDate(null);
-//               setHistoryVisible(true);
-//             }}
-//           >
-//             <Text style={{ color: "white" }}>History</Text>
-//           </TouchableOpacity>
-//           <TouchableOpacity
-//             style={[styles.historyButton, { marginLeft: 10 }]}
-//             onPress={() => setCalendarVisible(true)}
-//           >
-//             <Text style={{ color: "white" }}>Calendar</Text>
-//           </TouchableOpacity>
-//         </View>
-
-//         {/* Toggle Scientific */}
-//         <TouchableOpacity
-//           style={[styles.historyButton, { marginTop: 10 }]}
-//           onPress={() => setShowScientific(!showScientific)}
-//         >
-//           <Text style={{ color: "white" }}>
-//             {showScientific ? "Hide Scientific" : "Show Scientific"}
-//           </Text>
-//         </TouchableOpacity>
-//       </View>
-
-//       {/* Buttons Container */}
-//       <View style={styles.buttonsContainer}>
-//         {/* Basic Buttons */}
-//         {basicButtons.map((row, i) => (
-//           <View key={`basic-${i}`} style={styles.flexRow}>
-//             {row.map((btn) => (
-//               <TouchableOpacity
-//                 key={btn}
-//                 style={styles.flexButton}
-//                 onPress={() => handlePress(btn)}
-//               >
-//                 <Text style={styles.buttonText}>{btn}</Text>
-//               </TouchableOpacity>
-//             ))}
-//           </View>
-//         ))}
-
-//         {/* Always-visible extra buttons */}
-//         {extraButtons.map((row, i) => (
-//           <View key={`extra-${i}`} style={styles.flexRow}>
-//             {row.map((btn) => (
-//               <TouchableOpacity
-//                 key={btn}
-//                 style={styles.flexButton}
-//                 onPress={() => handlePress(btn)}
-//               >
-//                 <Text style={styles.buttonText}>{btn}</Text>
-//               </TouchableOpacity>
-//             ))}
-//           </View>
-//         ))}
-
-//         {/* Foldable scientific buttons */}
-//         {showScientific &&
-//           scientificButtons.map((row, i) => (
-//             <View key={`sci-${i}`} style={styles.flexRow}>
-//               {row.map((btn) => (
-//                 <TouchableOpacity
-//                   key={btn}
-//                   style={styles.flexButton}
-//                   onPress={() => handlePress(btn)}
-//                 >
-//                   <Text style={styles.buttonText}>{btn}</Text>
-//                 </TouchableOpacity>
-//               ))}
-//             </View>
-//           ))}
-//       </View>
-
-//       {/* History Modal */}
-//       <Modal
-//         visible={historyVisible}
-//         animationType="slide"
-//         onRequestClose={() => setHistoryVisible(false)}
-//       >
-//         <SafeAreaView style={styles.modalContainer}>
-//           <Text style={styles.modalTitle}>
-//             {selectedDate ? `History for ${selectedDate}` : "History"}
-//           </Text>
-//           <ScrollView>
-//             {filteredHistory.length === 0 ? (
-//               <Text>No calculations yet.</Text>
-//             ) : (
-//               filteredHistory.map((item, index) => (
-//                 <TouchableOpacity
-//                   key={index}
-//                   onPress={() => openNoteModal(index)}
-//                   style={styles.historyItem}
-//                 >
-//                   <Text style={styles.historyEntry}>
-//                     [{item.displayDate}] {item.entry}
-//                   </Text>
-//                   {item.note ? (
-//                     <Text style={styles.noteText}>Note: {item.note}</Text>
-//                   ) : (
-//                     <Text style={styles.addNoteText}>Tap to add note</Text>
-//                   )}
-//                 </TouchableOpacity>
-//               ))
-//             )}
-//           </ScrollView>
-//           <Button title="Close" onPress={() => setHistoryVisible(false)} />
-//         </SafeAreaView>
-//       </Modal>
-
-//       {/* Note Modal */}
-//       <Modal
-//         visible={noteModalVisible}
-//         animationType="slide"
-//         onRequestClose={() => setNoteModalVisible(false)}
-//       >
-//         <SafeAreaView style={styles.modalContainer}>
-//           <Text style={styles.modalTitle}>Add Note</Text>
-//           <TextInput
-//             style={styles.noteInput}
-//             placeholder="Enter note here"
-//             value={noteText}
-//             onChangeText={setNoteText}
-//           />
-//           <Button title="Save Note" onPress={saveNote} />
-//           <Button title="Cancel" onPress={() => setNoteModalVisible(false)} />
-//         </SafeAreaView>
-//       </Modal>
-
-//       {/* Calendar Modal */}
-//       <Modal
-//         visible={calendarVisible}
-//         animationType="slide"
-//         onRequestClose={() => setCalendarVisible(false)}
-//       >
-//         <SafeAreaView style={styles.modalContainer}>
-//           <Text style={styles.modalTitle}>Select Date</Text>
-//           <Calendar
-//             onDayPress={(day) => {
-//               setSelectedDate(day.dateString);
-//               setCalendarVisible(false);
-//               setHistoryVisible(true);
-//             }}
-//           />
-//           <Button title="Close" onPress={() => setCalendarVisible(false)} />
-//         </SafeAreaView>
-//       </Modal>
-//     </SafeAreaView>
-//   );
-// }
-
-// const styles = StyleSheet.create({
-//   container: { flex: 1, backgroundColor: "#222" },
-//   display: {
-//     flex: 1,
-//     justifyContent: "center",
-//     alignItems: "flex-end",
-//     padding: 20,
-//   },
-//   displayText: { fontSize: 40, color: "white" },
-//   historyButton: {
-//     marginTop: 10,
-//     backgroundColor: "#555",
-//     padding: 10,
-//     borderRadius: 5,
-//   },
-//   buttonsContainer: {
-//     flex: 2,
-//     padding: 10,
-//     justifyContent: "space-around",
-//   },
-//   flexRow: {
-//     flexDirection: "row",
-//     flex: 1,
-//     justifyContent: "space-around",
-//     marginBottom: 10,
-//   },
-//   flexButton: {
-//     backgroundColor: "#444",
-//     flex: 1,
-//     margin: 5,
-//     justifyContent: "center",
-//     alignItems: "center",
-//     borderRadius: 10,
-//   },
-//   buttonText: { color: "white", fontSize: 20 },
-//   modalContainer: { flex: 1, padding: 20, backgroundColor: "#fff" },
-//   modalTitle: { fontSize: 24, fontWeight: "bold", marginBottom: 20 },
-//   historyEntry: { fontSize: 18 },
-//   historyItem: { marginBottom: 15 },
-//   noteText: { fontSize: 16, fontStyle: "italic", color: "blue" },
-//   addNoteText: { fontSize: 16, fontStyle: "italic", color: "gray" },
-//   noteInput: {
-//     borderWidth: 1,
-//     borderColor: "#ccc",
-//     padding: 10,
-//     marginBottom: 20,
-//     borderRadius: 5,
-//   },
-// });
-
