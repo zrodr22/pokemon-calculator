@@ -1,5 +1,14 @@
 # Welcome to your Expo app 👋
 
+## TODO
+
+- [ ] Make note modal more smooth. Replace with bottomSheet?
+- [ ] Figure out how to test on iphone emulator with expo
+- [ ] Mess with button shape and colors?
+- [ ] Probably re add the parenthesis
+- [ ] Probably write some tests
+- [ ] Can do more testing with emulator (ads, bottomSheet, who knows what else...)
+
 This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
 
 ## Get started
