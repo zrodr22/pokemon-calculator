@@ -90,7 +90,7 @@ export default function App() {
   };
 
   const press = (val: string) => {
-    if (val === "C") setInput("");
+    if (val === "AC") setInput("");
     else if (val === "⌫") setInput(input.slice(0, -1));
     else if (val === "=") evaluate();
     else if (["sin", "cos", "tan"].includes(val)) {
@@ -110,9 +110,10 @@ export default function App() {
   };
 
   const openNote = (index: number) => {
+    setHistoryVisible(false);
     setNoteIndex(index);
     setNoteText(history[index].note || "");
-    setNoteVisible(true);
+    setTimeout(() => setNoteVisible(true), 0);
   };
 
   const saveNote = () => {
@@ -121,6 +122,12 @@ export default function App() {
     updated[noteIndex].note = noteText;
     persist(updated);
     setNoteVisible(false);
+    setTimeout(() => setHistoryVisible(true), 0);
+  };
+  
+  const cancelNote = () => {
+    setNoteVisible(false);
+    setTimeout(() => setHistoryVisible(true), 0);
   };
 
   const filteredHistory = selectedDate
@@ -133,7 +140,7 @@ export default function App() {
   const displayFontSize = Math.min(screenHeight * 0.06, 48); // max 48
 
   const standardButtons = [
-    ["C", "⌫", "%", "÷"],
+    ["AC", "⌫", "%", "÷"],
     ["7", "8", "9", "×"],
     ["4", "5", "6", "−"],
     ["1", "2", "3", "+"],
@@ -211,7 +218,7 @@ export default function App() {
           <Text style={styles.modalTitle}>Add Note</Text>
           <TextInput style={styles.input} value={noteText} onChangeText={setNoteText} placeholder="Note..." />
           <Button title="Save" onPress={saveNote} />
-          <Button title="Cancel" onPress={() => setNoteVisible(false)} />
+          <Button title="Cancel" onPress={cancelNote} />
         </SafeAreaView>
       </Modal>
 
