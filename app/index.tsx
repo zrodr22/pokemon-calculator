@@ -150,7 +150,7 @@ export default function App() {
         </ScrollView>
 
         <View style={styles.topButtons}>
-          <TouchableOpacity onPress={() => setHistoryVisible(true)}>
+          <TouchableOpacity onPress={() => { setSelectedDate(null); setHistoryVisible(true); }}>
             <Text style={styles.topText}>History</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setCalendarVisible(true)}>
