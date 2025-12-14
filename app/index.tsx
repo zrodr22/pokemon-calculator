@@ -26,13 +26,11 @@ const STORAGE_KEY = "@calculator_history";
 export default function App() {
   const [input, setInput] = useState("");
   const [history, setHistory] = useState<HistoryItem[]>([]);
-  const [historyVisible, setHistoryVisible] = useState(false);
-  const [noteVisible, setNoteVisible] = useState(false);
+  const [activeModal, setActiveModal] = useState<"history" | "note" | "calendar" | null>(null);
   const [noteText, setNoteText] = useState("");
   const [noteIndex, setNoteIndex] = useState<number | null>(null);
-  const [calendarVisible, setCalendarVisible] = useState(false);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
-  const [showScientific, setShowScientific] = useState(false);
+  // const [showScientific, setShowScientific] = useState(false);
 
   // Track screen dimensions
   const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
@@ -110,10 +108,9 @@ export default function App() {
   };
 
   const openNote = (index: number) => {
-    setHistoryVisible(false);
     setNoteIndex(index);
     setNoteText(history[index].note || "");
-    setTimeout(() => setNoteVisible(true), 0);
+    setActiveModal("note");
   };
 
   const saveNote = () => {
@@ -121,13 +118,11 @@ export default function App() {
     const updated = [...history];
     updated[noteIndex].note = noteText;
     persist(updated);
-    setNoteVisible(false);
-    setTimeout(() => setHistoryVisible(true), 0);
+    setActiveModal("history");
   };
   
   const cancelNote = () => {
-    setNoteVisible(false);
-    setTimeout(() => setHistoryVisible(true), 0);
+    setActiveModal("history");
   };
 
   const filteredHistory = selectedDate
@@ -157,10 +152,10 @@ export default function App() {
         </ScrollView>
 
         <View style={styles.topButtons}>
-          <TouchableOpacity onPress={() => { setSelectedDate(null); setHistoryVisible(true); }}>
+          <TouchableOpacity onPress={() => { setSelectedDate(null); setActiveModal("history"); }}>
             <Text style={styles.topText}>History</Text>
           </TouchableOpacity>
-          <TouchableOpacity onPress={() => setCalendarVisible(true)}>
+          <TouchableOpacity onPress={() => setActiveModal("calendar")}>
             <Text style={styles.topText}>Calendar</Text>
           </TouchableOpacity>
           {/* <TouchableOpacity onPress={() => setShowScientific(!showScientific)}>
@@ -196,8 +191,19 @@ export default function App() {
         </View>
       </View>
 
+      {/* MODALS */}
+
+      {/* <Modal visible={activeModal !== "none"} animationType="slide">
+        {activeModal === "history" && <History />
+        
+        }
+        {activeModal === "note" && <Note />}
+        {activeModal === "calendar" && <Calendar />}
+      </Modal> */}
+
+
       {/* History Modal */}
-      <Modal visible={historyVisible} animationType="slide">
+      <Modal visible={activeModal === "history"} animationType="none">
         <SafeAreaView style={styles.modal}>
           <Text style={styles.modalTitle}>History</Text>
           <ScrollView>
@@ -208,12 +214,12 @@ export default function App() {
               </TouchableOpacity>
             ))}
           </ScrollView>
-          <Button title="Close" onPress={() => setHistoryVisible(false)} />
+          <Button title="Close" onPress={() => setActiveModal(null)} />
         </SafeAreaView>
       </Modal>
 
       {/* Note Modal */}
-      <Modal visible={noteVisible} transparent animationType="slide">
+      <Modal visible={activeModal === "note"} transparent animationType="none">
         <SafeAreaView style={styles.modal}>
           <Text style={styles.modalTitle}>Add Note</Text>
           <TextInput style={styles.input} value={noteText} onChangeText={setNoteText} placeholder="Note..." />
@@ -223,18 +229,18 @@ export default function App() {
       </Modal>
 
       {/* Calendar Modal */}
-      <Modal visible={calendarVisible} animationType="slide">
+      <Modal visible={activeModal === "calendar"} animationType="slide">
         <SafeAreaView style={styles.modal}>
           <Calendar
             onDayPress={(d) => {
               setSelectedDate(d.dateString);
-              setCalendarVisible(false);
-              setHistoryVisible(true);
+              setActiveModal("history");
             }}
           />
-          <Button title="Close" onPress={() => setCalendarVisible(false)} />
+          <Button title="Close" onPress={() => setActiveModal(null)} />
         </SafeAreaView>
       </Modal>
+
     </SafeAreaView>
   );
 }
