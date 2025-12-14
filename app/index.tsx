@@ -48,8 +48,12 @@ export default function App() {
       setScreenWidth(window.width);
     };
 
-    Dimensions.addEventListener("change", onChange);
-    return () => Dimensions.removeEventListener("change", onChange);
+    const dimSub = Dimensions.addEventListener("change", onChange);
+    return () => {
+      if (dimSub && typeof (dimSub as any).remove === "function") {
+        (dimSub as any).remove();
+      }
+    };
   }, []);
 
   const persist = (data: HistoryItem[]) => {
