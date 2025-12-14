@@ -192,55 +192,41 @@ export default function App() {
       </View>
 
       {/* MODALS */}
-
-      {/* <Modal visible={activeModal !== "none"} animationType="slide">
-        {activeModal === "history" && <History />
-        
+      <Modal visible={activeModal !== null} animationType="slide">
+        {activeModal === "history" && 
+          <SafeAreaView style={styles.modal}>
+            <Text style={styles.modalTitle}>History</Text>
+            <ScrollView>
+              {filteredHistory.map((h, i) => (
+                <TouchableOpacity key={i} style={styles.historyItem} onPress={() => openNote(i)}>
+                  <Text>{`[${h.displayDate}] ${h.entry}`}</Text>
+                  <Text style={styles.note}>{h.note ? `Note: ${h.note}` : "Tap to add note"}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+            <Button title="Close" onPress={() => setActiveModal(null)} />
+          </SafeAreaView>
         }
-        {activeModal === "note" && <Note />}
-        {activeModal === "calendar" && <Calendar />}
-      </Modal> */}
-
-
-      {/* History Modal */}
-      <Modal visible={activeModal === "history"} animationType="none">
-        <SafeAreaView style={styles.modal}>
-          <Text style={styles.modalTitle}>History</Text>
-          <ScrollView>
-            {filteredHistory.map((h, i) => (
-              <TouchableOpacity key={i} style={styles.historyItem} onPress={() => openNote(i)}>
-                <Text>{`[${h.displayDate}] ${h.entry}`}</Text>
-                <Text style={styles.note}>{h.note ? `Note: ${h.note}` : "Tap to add note"}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-          <Button title="Close" onPress={() => setActiveModal(null)} />
-        </SafeAreaView>
+        {activeModal === "note" && 
+          <SafeAreaView style={styles.modal}>
+            <Text style={styles.modalTitle}>Add Note</Text>
+            <TextInput style={styles.input} value={noteText} onChangeText={setNoteText} placeholder="Note..." />
+            <Button title="Save" onPress={saveNote} />
+            <Button title="Cancel" onPress={cancelNote} />
+          </SafeAreaView>
+        }
+        {activeModal === "calendar" && 
+          <SafeAreaView style={styles.modal}>
+            <Calendar
+              onDayPress={(d) => {
+                setSelectedDate(d.dateString);
+                setActiveModal("history");
+              }}
+            />
+            <Button title="Close" onPress={() => setActiveModal(null)} />
+          </SafeAreaView>
+        }
       </Modal>
-
-      {/* Note Modal */}
-      <Modal visible={activeModal === "note"} transparent animationType="none">
-        <SafeAreaView style={styles.modal}>
-          <Text style={styles.modalTitle}>Add Note</Text>
-          <TextInput style={styles.input} value={noteText} onChangeText={setNoteText} placeholder="Note..." />
-          <Button title="Save" onPress={saveNote} />
-          <Button title="Cancel" onPress={cancelNote} />
-        </SafeAreaView>
-      </Modal>
-
-      {/* Calendar Modal */}
-      <Modal visible={activeModal === "calendar"} animationType="slide">
-        <SafeAreaView style={styles.modal}>
-          <Calendar
-            onDayPress={(d) => {
-              setSelectedDate(d.dateString);
-              setActiveModal("history");
-            }}
-          />
-          <Button title="Close" onPress={() => setActiveModal(null)} />
-        </SafeAreaView>
-      </Modal>
-
     </SafeAreaView>
   );
 }
