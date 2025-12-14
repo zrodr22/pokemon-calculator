@@ -2,6 +2,7 @@
 
 ## TODO
 
+- [ ] Add modal manager to see if transitions are smoother
 - [ ] Make note modal more smooth. Replace with bottomSheet?
 - [ ] Add scientific calculator
 - [ ] Figure out how to test on iphone emulator with expo
