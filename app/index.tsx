@@ -108,10 +108,21 @@ export default function App() {
     } else setInput(input + val);
   };
 
-  const openNote = (index: number) => {
-    setNoteIndex(index);
-    setNoteText(history[index].note || "");
+  const openNote = (filteredIndex: number) => {
+    const filteredItem = filteredHistory[filteredIndex];
+    const masterIndex = history.findIndex(
+      (h) => h.date === filteredItem.date && h.entry === filteredItem.entry
+    );
+
+    if (masterIndex === -1) return; // safety check
+
+    setNoteIndex(masterIndex);
+    setNoteText(filteredItem.note || "");
     setActiveModal("note");
+
+    // setNoteIndex(index);
+    // setNoteText(filteredHistory[index].note || "");
+    // setActiveModal("note");
   };
 
   const saveNote = () => {
