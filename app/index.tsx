@@ -30,6 +30,7 @@ export default function App() {
   const [noteText, setNoteText] = useState("");
   const [noteIndex, setNoteIndex] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [historyParent, setHistoryParent] = useState<"calendar" | null>(null);
   // const [showScientific, setShowScientific] = useState(false);
 
   // Track screen dimensions
@@ -152,7 +153,12 @@ export default function App() {
         </ScrollView>
 
         <View style={styles.topButtons}>
-          <TouchableOpacity onPress={() => { setSelectedDate(null); setActiveModal("history"); }}>
+          <TouchableOpacity onPress={() => { 
+                setSelectedDate(null); 
+                setHistoryParent(null); 
+                setActiveModal("history"); 
+              }
+            }>
             <Text style={styles.topText}>History</Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setActiveModal("calendar")}>
@@ -195,6 +201,14 @@ export default function App() {
       <Modal visible={activeModal !== null} animationType="slide">
         {activeModal === "history" && 
           <SafeAreaView style={styles.modal}>
+              {historyParent === "calendar" && 
+              <TouchableOpacity style={[styles.navButton, {alignSelf: "flex-start"}]} onPress={() => {
+                  setActiveModal("calendar");
+                  setHistoryParent(null); // reset
+                }}>
+                <Text style={styles.navButtonText}>{"< Back"}</Text>
+              </TouchableOpacity>
+              }
             <Text style={styles.modalTitle}>History</Text>
             <ScrollView>
               {filteredHistory.map((h, i) => (
@@ -204,7 +218,9 @@ export default function App() {
                 </TouchableOpacity>
               ))}
             </ScrollView>
-            <Button title="Close" onPress={() => setActiveModal(null)} />
+            <TouchableOpacity  style={[styles.navButton, {alignSelf: "center"}]} onPress={() => setActiveModal(null)}>
+              <Text style={styles.navButtonText}>Close</Text>
+            </TouchableOpacity>
           </SafeAreaView>
         }
         {activeModal === "note" && 
@@ -220,10 +236,13 @@ export default function App() {
             <Calendar
               onDayPress={(d) => {
                 setSelectedDate(d.dateString);
+                setHistoryParent("calendar");
                 setActiveModal("history");
               }}
             />
-            <Button title="Close" onPress={() => setActiveModal(null)} />
+            <TouchableOpacity  style={[styles.navButton, {alignSelf: "center"}]} onPress={() => setActiveModal(null)}>
+              <Text style={styles.navButtonText}>Close</Text>
+            </TouchableOpacity>
           </SafeAreaView>
         }
       </Modal>
@@ -259,6 +278,19 @@ function CalcButton({
 }
 
 const styles = StyleSheet.create({
+  navButton: {
+    paddingVertical: 8,
+    // paddingHorizontal: 15,
+    // backgroundColor: "#8bc0f8ff", // consistent blue
+    // borderRadius: 8, // slightly rounded corners
+    // alignSelf: "flex-start", // hug left
+    // marginBottom: 10, // optional spacing
+  },
+  navButtonText: {
+    color: "#3d6694ff",
+    fontSize: 16,
+    // fontWeight: "600",
+  },
   container: { flex: 1, backgroundColor: "#000" },
   display: { flex: 1, justifyContent: "flex-end", padding: 10 },
   displayText: { color: "white" },
