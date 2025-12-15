@@ -6,13 +6,13 @@ import {
   StyleSheet,
   ScrollView,
   Modal,
-  TextInput,
-  Button,
   Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import { Calendar } from "react-native-calendars";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import HistoryModal from "./HistoryModal";
+import NoteModal from "./NoteModal";
+import CalendarModal from "./CalendarModal";
 
 interface HistoryItem {
   entry: string;
@@ -31,7 +31,7 @@ export default function App() {
   const [noteIndex, setNoteIndex] = useState<number | null>(null);
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [historyParent, setHistoryParent] = useState<"calendar" | null>(null);
-  // const [showScientific, setShowScientific] = useState(false);
+// const [showScientific, setShowScientific] = useState(false);
 
   // Track screen dimensions
   const [screenHeight, setScreenHeight] = useState(Dimensions.get("window").height);
@@ -119,10 +119,6 @@ export default function App() {
     setNoteIndex(masterIndex);
     setNoteText(filteredItem.note || "");
     setActiveModal("note");
-
-    // setNoteIndex(index);
-    // setNoteText(filteredHistory[index].note || "");
-    // setActiveModal("note");
   };
 
   const saveNote = () => {
@@ -135,6 +131,17 @@ export default function App() {
   
   const cancelNote = () => {
     setActiveModal("history");
+  };
+
+  const handleCalendarDayPress = (dateString: string) => {
+    setSelectedDate(dateString);
+    setHistoryParent("calendar");
+    setActiveModal("history");
+  };
+
+  const handleHistoryBack = () => {
+    setActiveModal("calendar");
+    setHistoryParent(null);
   };
 
   const filteredHistory = selectedDate
@@ -210,52 +217,29 @@ export default function App() {
 
       {/* MODALS */}
       <Modal visible={activeModal !== null} animationType="slide">
-        {activeModal === "history" && 
-          <SafeAreaView style={styles.modal}>
-              {historyParent === "calendar" && 
-              <TouchableOpacity style={[styles.navButton, {alignSelf: "flex-start"}]} onPress={() => {
-                  setActiveModal("calendar");
-                  setHistoryParent(null); // reset
-                }}>
-                <Text style={styles.navButtonText}>{"< Back"}</Text>
-              </TouchableOpacity>
-              }
-            <Text style={styles.modalTitle}>History</Text>
-            <ScrollView>
-              {filteredHistory.map((h, i) => (
-                <TouchableOpacity key={i} style={styles.historyItem} onPress={() => openNote(i)}>
-                  <Text>{`[${h.displayDate}] ${h.entry}`}</Text>
-                  <Text style={styles.note}>{h.note ? `Note: ${h.note}` : "Tap to add note"}</Text>
-                </TouchableOpacity>
-              ))}
-            </ScrollView>
-            <TouchableOpacity  style={[styles.navButton, {alignSelf: "center"}]} onPress={() => setActiveModal(null)}>
-              <Text style={styles.navButtonText}>Close</Text>
-            </TouchableOpacity>
-          </SafeAreaView>
-        }
-        {activeModal === "note" && 
-          <SafeAreaView style={styles.modal}>
-            <Text style={styles.modalTitle}>Add Note</Text>
-            <TextInput style={styles.input} value={noteText} onChangeText={setNoteText} placeholder="Note..." />
-            <Button title="Save" onPress={saveNote} />
-            <Button title="Cancel" onPress={cancelNote} />
-          </SafeAreaView>
-        }
-        {activeModal === "calendar" && 
-          <SafeAreaView style={styles.modal}>
-            <Calendar
-              onDayPress={(d) => {
-                setSelectedDate(d.dateString);
-                setHistoryParent("calendar");
-                setActiveModal("history");
-              }}
-            />
-            <TouchableOpacity  style={[styles.navButton, {alignSelf: "center"}]} onPress={() => setActiveModal(null)}>
-              <Text style={styles.navButtonText}>Close</Text>
-            </TouchableOpacity>
-          </SafeAreaView>
-        }
+        {activeModal === "history" && (
+          <HistoryModal
+            filteredHistory={filteredHistory}
+            historyParent={historyParent}
+            onBack={handleHistoryBack}
+            onClose={() => setActiveModal(null)}
+            onOpenNote={openNote}
+          />
+        )}
+        {activeModal === "note" && (
+          <NoteModal
+            noteText={noteText}
+            onChangeText={setNoteText}
+            onSave={saveNote}
+            onCancel={cancelNote}
+          />
+        )}
+        {activeModal === "calendar" && (
+          <CalendarModal
+            onDayPress={handleCalendarDayPress}
+            onClose={() => setActiveModal(null)}
+          />
+        )}
       </Modal>
     </SafeAreaView>
   );
@@ -289,19 +273,6 @@ function CalcButton({
 }
 
 const styles = StyleSheet.create({
-  navButton: {
-    paddingVertical: 8,
-    // paddingHorizontal: 15,
-    // backgroundColor: "#8bc0f8ff", // consistent blue
-    // borderRadius: 8, // slightly rounded corners
-    // alignSelf: "flex-start", // hug left
-    // marginBottom: 10, // optional spacing
-  },
-  navButtonText: {
-    color: "#3d6694ff",
-    fontSize: 16,
-    // fontWeight: "600",
-  },
   container: { flex: 1, backgroundColor: "#000" },
   display: { flex: 1, justifyContent: "flex-end", padding: 10 },
   displayText: { color: "white" },
@@ -312,9 +283,4 @@ const styles = StyleSheet.create({
   button: { flex: 1, backgroundColor: "#333", margin: 3, borderRadius: 35, minHeight: 50 },
   wide: { flex: 2 },
   buttonText: { color: "white" },
-  modal: { flex: 1, padding: 20, backgroundColor: "#fff" },
-  modalTitle: { fontSize: 22, fontWeight: "bold", marginBottom: 10 },
-  historyItem: { marginBottom: 15 },
-  note: { fontStyle: "italic", color: "#555" },
-  input: { borderWidth: 1, borderColor: "#ccc", padding: 10, marginBottom: 10 },
 });
